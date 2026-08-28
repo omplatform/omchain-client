@@ -169,6 +169,9 @@ public enum RpcMethod {
   TRACE_RAW_TRANSACTION("trace_rawTransaction"),
   TRACE_REPLAY_BLOCK_TRANSACTIONS("trace_replayBlockTransactions"),
   TRACE_TRANSACTION("trace_transaction"),
+  // T-092 (infinity): geth มี eth_pendingTransactions แต่ Besu ยังไม่มี
+  // explorer/tool ทั่วไปเรียกตัวนี้เพื่ออ่านคิว tx
+  ETH_PENDING_TRANSACTIONS("eth_pendingTransactions"),
   TX_POOL_BESU_STATISTICS("txpool_besuStatistics"),
   TX_POOL_BESU_TRANSACTIONS("txpool_besuTransactions"),
   TX_POOL_BESU_PENDING_TRANSACTIONS("txpool_besuPendingTransactions"),
