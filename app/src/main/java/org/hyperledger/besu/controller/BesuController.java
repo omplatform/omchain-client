@@ -427,9 +427,12 @@ public class BesuController implements java.io.Closeable {
         originalControllerBuilder = new IbftBesuControllerBuilder();
       } else if (configOptions.isIbftLegacy()) {
         originalControllerBuilder = new IbftLegacyBesuControllerBuilder();
+      } else if (configOptions.isClique()) {
+        // T-092 (infinity): รองรับย้าย Clique -> QBFT ในเชนเดิม (ประวัติไม่หาย)
+        originalControllerBuilder = new CliqueBesuControllerBuilder();
       } else {
         throw new IllegalStateException(
-            "Invalid genesis migration config. Migration is supported from IBFT (legacy) or IBFT2 to QBFT)");
+            "Invalid genesis migration config. Migration is supported from Clique, IBFT (legacy) or IBFT2 to QBFT)");
       }
       besuControllerBuilderSchedule.put(0L, originalControllerBuilder);
 

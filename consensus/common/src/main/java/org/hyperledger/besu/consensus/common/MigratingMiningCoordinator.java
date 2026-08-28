@@ -153,7 +153,25 @@ public class MigratingMiningCoordinator implements MiningCoordinator, BlockAdded
             }
           };
 
-      CompletableFuture.runAsync(stopActiveCoordinatorTask).thenRun(startNextCoordinatorTask);
+      // omchain patch: เดิมไม่มีตัวจับ exception — ถ้าการสลับ consensus ล้ม จะเงียบสนิท
+      // อาการที่เห็นคือ "เชนหยุดออก block ที่ block ก่อน transition" โดยไม่มี log อะไรเลย
+      // (พบตอนทดลองย้าย Clique -> QBFT บน chain-lab T-092)
+      CompletableFuture.runAsync(stopActiveCoordinatorTask)
+          .thenRun(startNextCoordinatorTask)
+          .whenComplete(
+              (v, t) -> {
+                if (t != null) {
+                  LOG.error(
+                      "สลับ mining coordinator ที่ block {} ไม่สำเร็จ — เชนจะหยุดออก block",
+                      currentBlock,
+                      t);
+                } else {
+                  LOG.info(
+                      "สลับ mining coordinator ที่ block {} สำเร็จ -> {}",
+                      currentBlock,
+                      activeMiningCoordinator.getClass().getSimpleName());
+                }
+              });
 
     } else if (activeMiningCoordinator instanceof BlockAddedObserver blockAddedObserver) {
       blockAddedObserver.onBlockAdded(event);
