@@ -33,6 +33,7 @@ import org.hyperledger.besu.ethereum.mainnet.ProtocolSchedule;
 import org.hyperledger.besu.ethereum.mainnet.ProtocolScheduleBuilder;
 import org.hyperledger.besu.ethereum.mainnet.ProtocolSpecAdapters;
 import org.hyperledger.besu.ethereum.mainnet.ProtocolSpecBuilder;
+import org.hyperledger.besu.ethereum.mainnet.WithdrawalsValidator;
 import org.hyperledger.besu.ethereum.mainnet.feemarket.BaseFeeMarket;
 import org.hyperledger.besu.ethereum.mainnet.feemarket.FeeMarket;
 import org.hyperledger.besu.evm.internal.EvmConfiguration;
@@ -143,6 +144,9 @@ public class CliqueProtocolSchedule {
         .blockReward(Wei.ZERO)
         .skipZeroBlockRewards(true)
         .miningBeneficiaryCalculator(CliqueHelpers::getProposerOfBlock)
+        // T-092 (infinity): Clique ไม่มี withdrawals (เป็นเรื่อง PoS) — ใช้ NotApplicableWithdrawals
+        // แบบเดียวกับที่ upstream ทำให้ QBFT ใน PR #9830 เพื่อให้เปิด Shanghai+ บน Clique ได้
+        .withdrawalsValidator(new WithdrawalsValidator.NotApplicableWithdrawals())
         .blockHeaderFunctions(new CliqueBlockHeaderFunctions());
   }
 

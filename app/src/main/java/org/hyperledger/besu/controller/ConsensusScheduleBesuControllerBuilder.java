@@ -187,6 +187,15 @@ public class ConsensusScheduleBesuControllerBuilder extends BesuControllerBuilde
       final Blockchain blockchain,
       final WorldStateArchive worldStateArchive,
       final ProtocolSchedule protocolSchedule) {
+    // omchain patch (T-092): sub-builder ในตาราง migration ไม่เคยรัน build() ของตัวเอง
+    // field transactionSimulator จึงเป็น null → QBFT แบบ validator-contract พังตอนสลับ consensus
+    // ด้วย NPE ใน TransactionValidatorProvider.getValidatorsFromContract() แบบ "เงียบ"
+    // (เชนหยุดออก block ที่ block ก่อน transition โดยไม่มี log)
+    // ตัวแม่สร้าง transactionSimulator เสร็จก่อนเรียกเมธอดนี้แล้ว จึงส่งต่อให้ลูกได้เลย
+    besuControllerBuilderSchedule
+        .values()
+        .forEach(b -> b.transactionSimulator = this.transactionSimulator);
+
     final List<ForkSpec<ConsensusContext>> consensusContextSpecs =
         besuControllerBuilderSchedule.entrySet().stream()
             .map(

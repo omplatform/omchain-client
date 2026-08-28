@@ -844,6 +844,14 @@ public abstract class BesuControllerBuilder implements MiningConfigurationOverri
             besuComponent.map(BesuComponent::getBlobCache).orElse(new BlobCache()),
             miningConfiguration);
 
+    // T-092 (infinity): ต่อ txpool เข้ากับ TransactionSimulator เพื่อให้ query แบบ "pending"
+    // เห็นผลของ tx ที่ยังไม่เข้า block (พฤติกรรมแบบ geth ที่ Besu ไม่ได้ทำมาแต่เดิม)
+    transactionSimulator.setPendingTransactionsSupplier(
+        () ->
+            transactionPool.getPendingTransactions().stream()
+                .map(org.hyperledger.besu.ethereum.eth.transactions.PendingTransaction::getTransaction)
+                .toList());
+
     final List<PeerValidator> peerValidators =
         createPeerValidators(protocolSchedule, peerTaskExecutor);
 
@@ -1131,7 +1139,16 @@ public abstract class BesuControllerBuilder implements MiningConfigurationOverri
       final SyncState syncState,
       final Blockchain blockchain) {
 
-    if (genesisConfigOptions.isQbft() || genesisConfigOptions.isIbft2()) {
+    // T-092 (infinity): ระหว่าง migrate Clique -> QBFT ถ้า chain head ยังอยู่ยุค Clique
+    // ห้ามใช้ BFT pivot selector (มันจะ cast CliqueContext เป็น BftContext แล้วพัง)
+    boolean bftEra = genesisConfigOptions.isQbft() || genesisConfigOptions.isIbft2();
+    if (bftEra && genesisConfigOptions.isConsensusMigration() && genesisConfigOptions.isClique()) {
+      final long qbftStart =
+          genesisConfigOptions.getQbftConfigOptions().getStartBlock().orElse(Long.MAX_VALUE);
+      bftEra = blockchain.getChainHeadBlockNumber() >= qbftStart;
+    }
+
+    if (bftEra) {
       LOG.info(
           "{} is configured, creating initial sync for BFT",
           genesisConfigOptions.getConsensusEngine().toUpperCase(Locale.ROOT));

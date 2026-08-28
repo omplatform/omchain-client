@@ -49,11 +49,25 @@ public class MigratingProtocolContext extends ProtocolContext {
 
   @Override
   public <C extends ConsensusContext> C getConsensusContext(final Class<C> klass) {
+    // ใช้ API ใหม่ของ upstream (getFork รับทั้งเลข block และ timestamp)
     final BlockHeader chainHead = getBlockchain().getChainHeadHeader();
-    return consensusContextSchedule
-        .getFork(chainHead.getNumber() + 1, chainHead.getTimestamp())
-        .getValue()
-        .as(klass);
+    try {
+      return consensusContextSchedule
+          .getFork(chainHead.getNumber() + 1, chainHead.getTimestamp())
+          .getValue()
+          .as(klass);
+    } catch (final ClassCastException e) {
+      // T-092 (infinity): กรณี migrate ข้ามตระกูล consensus (เช่น Clique -> QBFT)
+      // ตอน startup โค้ดฝั่ง QBFT ขอ BftContext ทั้งที่ chain head ยังอยู่ยุค Clique
+      // → หา context ชนิดที่ขอจากตารางแทน (runtime ยังเลือกตาม block ตามปกติ)
+      for (final var fork : consensusContextSchedule.getForks()) {
+        final ConsensusContext ctx = fork.getValue();
+        if (klass.isInstance(ctx)) {
+          return klass.cast(ctx);
+        }
+      }
+      throw e;
+    }
   }
 
   @Override
