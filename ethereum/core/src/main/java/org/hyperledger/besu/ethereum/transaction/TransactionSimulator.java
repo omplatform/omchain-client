@@ -98,6 +98,22 @@ public class TransactionSimulator {
   private final SimulationTransactionProcessorFactory simulationTransactionProcessorFactory;
   private final long rpcGasCap;
 
+  // T-092 (infinity): แหล่ง tx ที่ค้างใน pool — ใช้สร้าง "pending state" แบบที่ geth ทำ
+  // ตั้งค่าโดย BesuControllerBuilder หลังจากสร้าง TransactionPool เสร็จ (ไม่แตะ constructor)
+  private volatile java.util.function.Supplier<java.util.Collection<Transaction>>
+      pendingTransactionsSupplier = java.util.List::of;
+
+  /**
+   * เพดานความปลอดภัยของจำนวน tx ที่รันทับ state สำหรับ eth_call แบบ pending
+   * (ตั้งสูงพอสำหรับงานจริง ; ถ้าชนเพดานจะ log WARN ไม่ปล่อยให้ผิดเงียบๆ)
+   */
+  private static final int MAX_PENDING_TXS_APPLIED = 20_000;
+
+  public void setPendingTransactionsSupplier(
+      final java.util.function.Supplier<java.util.Collection<Transaction>> supplier) {
+    this.pendingTransactionsSupplier = supplier;
+  }
+
   public TransactionSimulator(
       final Blockchain blockchain,
       final WorldStateArchive worldStateArchive,
@@ -152,6 +168,8 @@ public class TransactionSimulator {
 
     try (final MutableWorldState disposableWorldState =
         duplicateWorldStateAtParent(pendingBlockHeader.getParentHash())) {
+      // T-092 (infinity): รัน tx ที่ค้างใน pool ทับ state ก่อน เพื่อให้ผลลัพธ์เป็น "pending" จริง
+      applyPendingTransactions(disposableWorldState, pendingBlockHeader);
       WorldUpdater updater = getEffectiveWorldStateUpdater(disposableWorldState);
 
       // in order to trace the state diff we need to make sure that
@@ -200,6 +218,129 @@ public class TransactionSimulator {
     LOG.trace("Simulated block header: {}", simulatedBlockHeader);
 
     return simulatedBlockHeader;
+  }
+
+  /**
+   * T-092 (infinity): เอา transaction ที่ค้างใน pool มารันทับ world state ที่ duplicate มา
+   * เพื่อจำลอง "pending state" แบบเดียวกับที่ geth ทำ (Besu ไม่ได้ทำมาแต่เดิม)
+   *
+   * <p>ปลอดภัยเชิงหน่วยความจำ: state ที่ใช้เป็นตัว duplicate ที่ caller ปิดด้วย try-with-resources
+   * และจำกัดจำนวน tx ที่รันด้วย MAX_PENDING_TXS_APPLIED
+   */
+  private void applyPendingTransactions(
+      final MutableWorldState worldState, final ProcessableBlockHeader pendingBlockHeader) {
+    final java.util.Collection<Transaction> pending;
+    try {
+      pending = pendingTransactionsSupplier.get();
+    } catch (final RuntimeException e) {
+      LOG.debug("อ่าน pending pool ไม่ได้ ข้ามการจำลอง pending state", e);
+      return;
+    }
+    if (pending == null || pending.isEmpty()) {
+      return;
+    }
+
+    final ProtocolSpec protocolSpec = protocolSchedule.getByBlockHeader(pendingBlockHeader);
+    final BlockHashLookup blockHashLookup =
+        protocolSpec.getPreExecutionProcessor().createBlockHashLookup(blockchain, pendingBlockHeader);
+    final MainnetTransactionProcessor processor = protocolSpec.getTransactionProcessor();
+
+    final java.util.List<Transaction> all =
+        pending.stream()
+            .sorted(
+                java.util.Comparator.comparing((Transaction t) -> t.getSender().toHexString())
+                    .thenComparingLong(Transaction::getNonce))
+            .toList();
+    if (all.size() > MAX_PENDING_TXS_APPLIED) {
+      // ห้ามผิดเงียบ — ถ้าคิวใหญ่เกินเพดาน ต้องรู้ตัว
+      LOG.warn(
+          "pending state: คิวมี {} tx เกินเพดาน {} — ผลลัพธ์ pending อาจไม่ครบ",
+          all.size(),
+          MAX_PENDING_TXS_APPLIED);
+    }
+    final java.util.List<Transaction> ordered =
+        all.size() > MAX_PENDING_TXS_APPLIED ? all.subList(0, MAX_PENDING_TXS_APPLIED) : all;
+
+    final WorldUpdater updater = worldState.updater();
+    int applied = 0;
+    for (final Transaction tx : ordered) {
+      try {
+        final TransactionProcessingResult r =
+            processor.processTransaction(
+                updater,
+                pendingBlockHeader,
+                tx,
+                pendingBlockHeader.getCoinbase(),
+                org.hyperledger.besu.evm.tracing.OperationTracer.NO_TRACING,
+                blockHashLookup,
+                TransactionValidationParams.processingBlock(),
+                Wei.ZERO,
+                java.util.Optional.empty());
+        if (r.isSuccessful()) {
+          applied++;
+        }
+      } catch (final RuntimeException e) {
+        // tx ที่รันไม่ได้ (เงินไม่พอ/nonce ไม่ต่อ) ข้ามไป — ไม่ให้กระทบการอ่านค่า
+        LOG.trace("ข้าม pending tx ระหว่างสร้าง pending state: {}", tx.getHash(), e);
+      }
+    }
+    updater.commit();
+    LOG.trace("pending state: รัน {} จาก {} tx ในคิว", applied, ordered.size());
+  }
+
+  /**
+   * T-092 (infinity): อ่านยอดเงินจาก "pending state" (state ล่าสุด + tx ที่ค้างในคิว)
+   * ใช้กลไกเดียวกับ eth_call ที่ pending เพื่อให้คำตอบสอดคล้องกันเสมอ
+   *
+   * @param address ที่อยู่ที่ต้องการอ่าน
+   * @return ยอดเงิน หรือ empty ถ้าอ่านไม่ได้ (ให้ caller ถอยไปใช้ latest)
+   */
+  public java.util.Optional<org.hyperledger.besu.datatypes.Wei> pendingAccountBalance(
+      final org.hyperledger.besu.datatypes.Address address) {
+    // T-092: คำนวณจาก "ทุก tx ในคิว" แบบเลขคณิต — ไม่มีเพดาน ไม่ต้องรัน EVM
+    // (เพดานแบบเดิมทำให้บาง address ถูกตัดทิ้งเงียบๆ = ยอดผิดโดยไม่มีสัญญาณเตือน)
+    final java.util.Collection<Transaction> pending;
+    try {
+      pending = pendingTransactionsSupplier.get();
+    } catch (final RuntimeException e) {
+      return java.util.Optional.empty();
+    }
+    final org.hyperledger.besu.datatypes.Wei latest;
+    try (final MutableWorldState ws =
+        duplicateWorldStateAtParent(blockchain.getChainHeadHash())) {
+      final org.hyperledger.besu.evm.account.Account a = ws.get(address);
+      latest = a == null ? org.hyperledger.besu.datatypes.Wei.ZERO : a.getBalance();
+    } catch (final Exception e) {
+      LOG.debug("อ่านยอดล่าสุดไม่ได้ ({})", address, e);
+      return java.util.Optional.empty();
+    }
+    if (pending == null || pending.isEmpty()) {
+      return java.util.Optional.of(latest);
+    }
+    java.math.BigInteger delta = java.math.BigInteger.ZERO;
+    for (final Transaction tx : pending) {
+      if (address.equals(tx.getSender())) {
+        // หักออก: ยอดโอน + ค่า gas สูงสุดที่จอง (แนวเดียวกับที่ txpool กันไว้)
+        delta = delta.subtract(tx.getValue().getAsBigInteger());
+        final java.math.BigInteger gasPrice =
+            tx.getGasPrice()
+                .map(org.hyperledger.besu.datatypes.Wei::getAsBigInteger)
+                .orElseGet(
+                    () ->
+                        tx.getMaxFeePerGas()
+                            .map(org.hyperledger.besu.datatypes.Wei::getAsBigInteger)
+                            .orElse(java.math.BigInteger.ZERO));
+        delta = delta.subtract(gasPrice.multiply(java.math.BigInteger.valueOf(tx.getGasLimit())));
+      }
+      if (tx.getTo().isPresent() && address.equals(tx.getTo().get())) {
+        delta = delta.add(tx.getValue().getAsBigInteger());
+      }
+    }
+    java.math.BigInteger result = latest.getAsBigInteger().add(delta);
+    if (result.signum() < 0) {
+      result = java.math.BigInteger.ZERO;
+    }
+    return java.util.Optional.of(org.hyperledger.besu.datatypes.Wei.of(result));
   }
 
   private MutableWorldState duplicateWorldStateAtParent(final Hash parentHash) {

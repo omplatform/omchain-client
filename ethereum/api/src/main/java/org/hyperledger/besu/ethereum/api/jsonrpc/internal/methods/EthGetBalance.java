@@ -28,12 +28,65 @@ import org.hyperledger.besu.ethereum.api.query.BlockchainQueries;
 import java.util.function.Supplier;
 
 public class EthGetBalance extends AbstractBlockParameterOrBlockHashMethod {
+  private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(EthGetBalance.class);
+
+  // T-092 (infinity): ใช้สำหรับอ่านยอดแบบ pending (Besu เดิมตอบเท่ากับ latest)
+  private final org.hyperledger.besu.ethereum.transaction.TransactionSimulator transactionSimulator;
+
   public EthGetBalance(final BlockchainQueries blockchainQueries) {
+    this(blockchainQueries, null);
+  }
+
+  public EthGetBalance(
+      final BlockchainQueries blockchainQueries,
+      final org.hyperledger.besu.ethereum.transaction.TransactionSimulator transactionSimulator) {
     super(blockchainQueries);
+    this.transactionSimulator = transactionSimulator;
+  }
+
+  /**
+   * T-092 (infinity): ยอดแบบ pending = ยอดล่าสุด + ผลของ tx ที่ยังค้างในคิว (พฤติกรรมแบบ geth)
+   * ถ้าอ่านไม่ได้ด้วยเหตุใดก็ตาม ถอยไปใช้ latest แบบเดิม — ห้ามปล่อย exception หลุด
+   */
+  @Override
+  protected Object pendingResult(final JsonRpcRequestContext request) {
+    if (transactionSimulator == null) {
+      return super.pendingResult(request);
+    }
+    final Address address;
+    try {
+      address = request.getRequiredParameter(0, Address.class);
+    } catch (final JsonRpcParameterException e) {
+      throw new InvalidJsonRpcParameters(
+          "Invalid address parameter (index 0)", RpcErrorType.INVALID_ADDRESS_PARAMS, e);
+    }
+    for (int attempt = 0; attempt < 3; attempt++) {
+      try {
+        final var balance = transactionSimulator.pendingAccountBalance(address);
+        if (balance.isPresent()) {
+          return Quantity.create(balance.get());
+        }
+      } catch (final RuntimeException e) {
+        LOG.debug("pending balance ล้มเหลว (ครั้งที่ {})", attempt + 1, e);
+      }
+      try {
+        Thread.sleep(25L);
+      } catch (final InterruptedException ie) {
+        Thread.currentThread().interrupt();
+        break;
+      }
+    }
+    try {
+      return super.pendingResult(request);
+    } catch (final RuntimeException e) {
+      LOG.debug("latest balance ล้มเหลวด้วย", e);
+      return null;
+    }
   }
 
   public EthGetBalance(final Supplier<BlockchainQueries> blockchainQueries) {
     super(blockchainQueries);
+    this.transactionSimulator = null;
   }
 
   @Override

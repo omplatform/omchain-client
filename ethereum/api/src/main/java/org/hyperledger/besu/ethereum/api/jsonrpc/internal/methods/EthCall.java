@@ -51,6 +51,7 @@ import java.util.Optional;
 import com.google.common.annotations.VisibleForTesting;
 
 public class EthCall extends AbstractBlockParameterOrBlockHashMethod {
+  private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(EthCall.class);
   private final TransactionSimulator transactionSimulator;
   private final LabelledMetric<Counter> gasUsedCounter;
 
@@ -92,6 +93,70 @@ public class EthCall extends AbstractBlockParameterOrBlockHashMethod {
       return errorResponse(request, BLOCK_NOT_FOUND);
     }
     return resultByBlockHeader(request, header);
+  }
+
+  /**
+   * T-092 (infinity): eth_call ที่ระบุ block เป็น "pending" ให้จำลองบน state
+   * ที่รวม tx ในคิวแล้ว (แบบเดียวกับ geth) แทนที่จะตกไปใช้ latest ตามค่าเดิมของ Besu
+   */
+  @Override
+  protected Object pendingResult(final JsonRpcRequestContext request) {
+    // T-092 (infinity): ตอน chain head ขยับพอดี state ของ parent อาจถูกปลดไปแล้ว (Bonsai)
+    // → ลองใหม่ไม่กี่ครั้ง ; ถ้ายังไม่ได้ค่อยถอยไป latest ; ถ้ายังไม่ได้อีกคืน error สะอาดๆ
+    // (ห้ามปล่อย exception หลุดออกไป เพราะ Besu จะ log stack trace ทำให้ log/disk โต)
+    RuntimeException last = null;
+    for (int attempt = 0; attempt < 3; attempt++) {
+      try {
+        return pendingResultInternal(request);
+      } catch (final RuntimeException e) {
+        last = e;
+        // หน่วงสั้นๆ ให้ world state archive ตั้งหลักหลัง chain head ขยับ
+        try {
+          Thread.sleep(25L);
+        } catch (final InterruptedException ie) {
+          Thread.currentThread().interrupt();
+          break;
+        }
+      }
+    }
+    try {
+      return latestResult(request);
+    } catch (final RuntimeException e) {
+      LOG.debug("pending/latest simulation ล้มเหลวทั้งคู่", last);
+      return new JsonRpcErrorResponse(request.getRequest().getId(), INTERNAL_ERROR);
+    }
+  }
+
+  private Object pendingResultInternal(final JsonRpcRequestContext request) {
+    final CallParameter callParams = CallParameterUtil.validateAndGetCallParams(request);
+    final Optional<StateOverrideMap> maybeStateOverrides = getAddressStateOverrideMap(request);
+    final var pendingHeader = transactionSimulator.simulatePendingBlockHeader();
+    return transactionSimulator
+        .processOnPending(
+            callParams,
+            maybeStateOverrides,
+            callParams.getStrict().orElse(Boolean.FALSE)
+                ? TransactionValidationParams.transactionSimulatorAllowFutureNonce()
+                : TransactionValidationParams.transactionSimulatorAllowExceedingBalanceAndFutureNonce(),
+            OperationTracer.NO_TRACING,
+            pendingHeader)
+        .map(
+            result -> {
+              final long gasUsed = result.getGasEstimate();
+              if (result.isSuccessful()) {
+                gasUsedCounter.labels("success").inc(gasUsed);
+                return (Object)
+                    new JsonRpcSuccessResponse(
+                        request.getRequest().getId(), result.getOutput().toString());
+              }
+              gasUsedCounter.labels("error").inc(gasUsed);
+              return (Object) errorResponse(request, result);
+            })
+        .orElseGet(
+            () -> {
+              gasUsedCounter.labels("internal_error").inc(0);
+              return errorResponse(request, INTERNAL_ERROR);
+            });
   }
 
   @Override
