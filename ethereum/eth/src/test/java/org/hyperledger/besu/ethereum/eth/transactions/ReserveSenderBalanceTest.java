@@ -29,9 +29,10 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 /**
- * The stateless validator compares every transaction against the full confirmed balance on its own,
- * so a sender can be admitted more transactions than it can pay for. These tests cover the extra
- * check that accounts for what the sender already has queued.
+ * The stateless validator skips its balance comparison for the pool, because the pool's validation
+ * params allow underpriced transactions, so a sender can be admitted transactions it cannot pay
+ * for. These tests cover the check that compares against the balance the sender has left, counting
+ * what it already has queued.
  */
 public class ReserveSenderBalanceTest {
 
@@ -127,9 +128,16 @@ public class ReserveSenderBalanceTest {
   }
 
   @Test
-  public void leavesTheFirstTransactionOfASenderToTheValidator() {
-    // nothing queued ahead of it: the check must not second-guess the validator, even at zero
-    assertThat(accepts(transaction(0), Wei.ZERO)).isTrue();
+  public void rejectsASenderThatCannotPayForItsFirstTransaction() {
+    // the pool's validation params allow underpriced transactions, which turns the validator's
+    // own balance comparison off, so this check is the only thing standing between an empty
+    // account and a transaction that can never be mined
+    assertThat(accepts(transaction(0), Wei.ZERO)).isFalse();
+  }
+
+  @Test
+  public void acceptsASenderThatCanPayForItsFirstTransaction() {
+    assertThat(accepts(transaction(0), COST_PER_TX)).isTrue();
   }
 
   @Test

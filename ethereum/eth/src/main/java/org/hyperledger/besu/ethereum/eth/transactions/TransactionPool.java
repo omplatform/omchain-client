@@ -534,26 +534,27 @@ public class TransactionPool implements BlockAddedObserver {
    * Check a transaction against the balance its sender has left once the transactions already in
    * the pool, that run before it, have been paid for.
    *
-   * <p>The stateless validator compares every transaction against the full confirmed balance on its
-   * own, so a sender can be admitted any number of transactions that together cost more than it can
-   * pay. Whichever ones run out of money can never be mined, and no removal reason covers them, so
-   * they hold slots for that sender until the node restarts. Accounting for the whole queue on
-   * arrival keeps them out, and tells the sender why straight away rather than accepting a
-   * transaction that will silently never be included. This is what geth does.
+   * <p>The stateless validator skips the balance comparison for the pool, because {@link
+   * org.hyperledger.besu.ethereum.mainnet.TransactionValidationParams#transactionPool()} allows
+   * underpriced transactions, so nothing stops a sender being admitted transactions it cannot pay
+   * for. They can never be mined: their nonces are in order, so they are not in the sparse layer,
+   * and no removal reason covers a sender that ran out of money. They hold slots for that sender
+   * until the node restarts. Comparing on arrival keeps them out, and answers the call that sent
+   * them instead of leaving the sender to work out why a transaction it was told was accepted never
+   * gets mined. This is what geth does.
    *
-   * <p>Only transactions with a lower nonce are counted: those are the ones that must execute
-   * first. A transaction with the same nonce is being replaced, so its cost is not owed twice. A
-   * sender with nothing queued ahead of this transaction has nothing to reserve, so the check adds
-   * nothing to what the validator already did.
+   * <p>Only transactions with a lower nonce are counted against the balance: those are the ones
+   * that must execute first. A transaction with the same nonce is replacing one already queued, so
+   * its cost is not owed twice.
    *
    * @param transaction the incoming transaction
-   * @param sender the sender account as of the chain head, null if it does not exist yet
+   * @param sender the sender account as of the chain head, null if it has none yet
    * @return valid if the sender can still pay for this transaction
    */
   private ValidationResult<TransactionInvalidReason> validateAgainstBalanceCommittedToPool(
       final Transaction transaction, final Account sender) {
 
-    if (!configuration.getReserveSenderBalance() || sender == null) {
+    if (!configuration.getReserveSenderBalance()) {
       return ValidationResult.valid();
     }
 
@@ -562,10 +563,14 @@ public class TransactionPool implements BlockAddedObserver {
             .getByBlockHeader(protocolContext.getBlockchain().getChainHeadHeader())
             .getGasCalculator();
 
+    // a sender with no account on chain owns nothing, which is how the validator reads it too
+    final Wei balance = sender == null ? Account.DEFAULT_BALANCE : sender.getBalance();
+    final long nonce = sender == null ? Account.DEFAULT_NONCE : sender.getNonce();
+
     return checkAgainstBalanceLeftForTransaction(
         transaction,
-        sender.getBalance(),
-        sender.getNonce(),
+        balance,
+        nonce,
         pendingTransactions
             .getPendingTransactionsFor(transaction.getSender())
             .pendingTransactions(),
@@ -609,19 +614,13 @@ public class TransactionPool implements BlockAddedObserver {
       remaining = remaining.subtract(cost);
     }
 
-    if (runningFirst == 0) {
-      // nothing of this sender's runs first, so there is nothing to reserve and the validator
-      // has already compared this transaction against the balance it gets to spend
-      return ValidationResult.valid();
-    }
-
     final Wei cost = upfrontCost.apply(transaction);
     if (cost.compareTo(remaining) > 0) {
       return ValidationResult.invalid(
           TransactionInvalidReason.UPFRONT_COST_EXCEEDS_BALANCE,
           String.format(
-              "transaction up-front cost %s exceeds the %s left of the balance of sender %s,"
-                  + " once the %d transaction(s) already in the pool that run first are paid for",
+              "transaction up-front cost %s exceeds the %s the sender %s has left of its balance,"
+                  + " with %d transaction(s) already in the pool running first",
               cost.toQuantityHexString(),
               remaining.toQuantityHexString(),
               transaction.getSender(),

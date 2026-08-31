@@ -264,7 +264,10 @@ public abstract class AbstractTransactionPoolTestBase extends TrustedSetupClassL
   TransactionPool createTransactionPool(
       final Consumer<ImmutableTransactionPoolConfiguration.Builder> configConsumer) {
     final ImmutableTransactionPoolConfiguration.Builder configBuilder =
-        ImmutableTransactionPoolConfiguration.builder();
+        ImmutableTransactionPoolConfiguration.builder()
+            // these tests sign with senders that own nothing and never mean to model balances,
+            // so leave the sender balance out of it: ReserveSenderBalanceTest covers that check
+            .reserveSenderBalance(false);
     configConsumer.accept(configBuilder);
     final TransactionPoolConfiguration poolConfig = configBuilder.build();
 
