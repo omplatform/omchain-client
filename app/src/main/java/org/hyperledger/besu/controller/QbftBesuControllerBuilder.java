@@ -257,7 +257,8 @@ public class QbftBesuControllerBuilder extends BesuControllerBuilder {
                 bftExecutors),
             new BlockTimer(bftEventQueue, qbftForksSchedule, bftExecutors, clock),
             new QbftBlockCreatorFactoryAdaptor(blockCreatorFactory, qbftExtraDataCodec),
-            clock);
+            clock,
+            () -> transactionPool.count() > 0);
 
     final MessageValidatorFactory messageValidatorFactory =
         new MessageValidatorFactory(

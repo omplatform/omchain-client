@@ -28,6 +28,7 @@ import org.hyperledger.besu.datatypes.Address;
 
 import java.time.Clock;
 import java.util.Collection;
+import java.util.function.BooleanSupplier;
 
 /** Besu implementation of QbftFinalState for maintaining the state of a QBFT network. */
 public class QbftFinalStateImpl implements QbftFinalState {
@@ -40,6 +41,7 @@ public class QbftFinalStateImpl implements QbftFinalState {
   private final BlockTimer blockTimer;
   private final QbftBlockCreatorFactory blockCreatorFactory;
   private final Clock clock;
+  private final BooleanSupplier pendingTransactionsSupplier;
 
   /**
    * Constructs a new QBFT final state.
@@ -64,6 +66,44 @@ public class QbftFinalStateImpl implements QbftFinalState {
       final BlockTimer blockTimer,
       final QbftBlockCreatorFactory blockCreatorFactory,
       final Clock clock) {
+    this(
+        validatorProvider,
+        nodeKey,
+        localAddress,
+        proposerSelector,
+        validatorMulticaster,
+        roundTimer,
+        blockTimer,
+        blockCreatorFactory,
+        clock,
+        () -> false);
+  }
+
+  /**
+   * Instantiates a new Qbft final state that can report whether transactions are waiting.
+   *
+   * @param validatorProvider the validator provider
+   * @param nodeKey the node key
+   * @param localAddress the local address
+   * @param proposerSelector the proposer selector
+   * @param validatorMulticaster the validator multicaster
+   * @param roundTimer the round timer
+   * @param blockTimer the block timer
+   * @param blockCreatorFactory the block creator factory
+   * @param clock the clock
+   * @param pendingTransactionsSupplier reports whether transactions are waiting to be mined
+   */
+  public QbftFinalStateImpl(
+      final ValidatorProvider validatorProvider,
+      final NodeKey nodeKey,
+      final Address localAddress,
+      final ProposerSelector proposerSelector,
+      final ValidatorMulticaster validatorMulticaster,
+      final RoundTimer roundTimer,
+      final BlockTimer blockTimer,
+      final QbftBlockCreatorFactory blockCreatorFactory,
+      final Clock clock,
+      final BooleanSupplier pendingTransactionsSupplier) {
     this.validatorProvider = validatorProvider;
     this.nodeKey = nodeKey;
     this.localAddress = localAddress;
@@ -73,6 +113,12 @@ public class QbftFinalStateImpl implements QbftFinalState {
     this.blockTimer = blockTimer;
     this.blockCreatorFactory = blockCreatorFactory;
     this.clock = clock;
+    this.pendingTransactionsSupplier = pendingTransactionsSupplier;
+  }
+
+  @Override
+  public boolean hasPendingTransactions() {
+    return pendingTransactionsSupplier.getAsBoolean();
   }
 
   /**

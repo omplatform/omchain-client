@@ -194,9 +194,15 @@ public class QbftBlockHeightManager implements BaseQbftBlockHeightManager {
 
     if (!isProposer) {
       final long currentTimeInMillis = finalState.getClock().millis();
-      if (!finalState
-          .getBlockTimer()
-          .checkEmptyBlockExpired(parentHeader::getTimestamp, currentTimeInMillis)) {
+      // Going idle stops the round timer, and a node with no round timer cannot call a round
+      // change. If the proposer for this round is unresponsive while transactions are waiting,
+      // every other validator going idle leaves nobody able to replace it, and the chain stalls
+      // until the empty block period elapses. Only go idle when there is nothing to do.
+      final boolean nothingToDo = !finalState.hasPendingTransactions();
+      if (nothingToDo
+          && !finalState
+              .getBlockTimer()
+              .checkEmptyBlockExpired(parentHeader::getTimestamp, currentTimeInMillis)) {
         // Mirror the proposer: reset timer, kill round timer, go idle
         finalState
             .getBlockTimer()

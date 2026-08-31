@@ -104,4 +104,20 @@ public interface QbftFinalState {
    * @return true if the local node is the proposer for the given round, false otherwise
    */
   boolean isLocalNodeProposerForRound(ConsensusRoundIdentifier roundIdentifier);
+
+  /**
+   * Whether this node currently has transactions waiting to be included in a block.
+   *
+   * <p>Used to decide whether it is safe to stop the round timer and go idle. A node with no round
+   * timer cannot call a round change, so it cannot replace a proposer that has stopped responding.
+   * Going idle is only safe when there is genuinely nothing to do.
+   *
+   * <p>Defaults to false, which preserves the previous behaviour for any implementation that does
+   * not override it.
+   *
+   * @return true if transactions are waiting
+   */
+  default boolean hasPendingTransactions() {
+    return false;
+  }
 }
