@@ -169,6 +169,7 @@ public class TransactionPoolOptions implements CLIOptions<TransactionPoolConfigu
     private static final String TX_POOL_MAX_FUTURE_AGE_SECONDS = "--tx-pool-max-future-age-seconds";
     private static final String TX_POOL_MIN_SCORE = "--tx-pool-min-score";
     private static final String TX_POOL_ENABLE_BALANCE_CHECK = "--tx-pool-enable-balance-check";
+    private static final String TX_POOL_RESERVE_SENDER_BALANCE = "--tx-pool-reserve-sender-balance";
 
     @CommandLine.Option(
         names = {TX_POOL_LAYER_MAX_CAPACITY},
@@ -227,6 +228,19 @@ public class TransactionPoolOptions implements CLIOptions<TransactionPoolConfigu
         fallbackValue = "true",
         arity = "0..1")
     Boolean balanceCheckEnabled = TransactionPoolConfiguration.DEFAULT_TX_POOL_ENABLE_BALANCE_CHECK;
+
+    @CommandLine.Option(
+        names = {TX_POOL_RESERVE_SENDER_BALANCE},
+        paramLabel = "<Boolean>",
+        description =
+            "Reject a transaction whose up-front cost exceeds the balance its sender has"
+                + " left, once the transactions already in the pool that run before it are"
+                + " paid for. Set to false to check each transaction against the full"
+                + " confirmed balance instead (default: ${DEFAULT-VALUE})",
+        fallbackValue = "true",
+        arity = "0..1")
+    Boolean txPoolReserveSenderBalance =
+        TransactionPoolConfiguration.DEFAULT_RESERVE_SENDER_BALANCE;
   }
 
   @CommandLine.ArgGroup(
@@ -391,6 +405,7 @@ public class TransactionPoolOptions implements CLIOptions<TransactionPoolConfigu
     options.layeredOptions.txPoolMaxFutureAgeSeconds = config.getMaxFutureAgeSeconds();
     options.layeredOptions.minScore = config.getMinScore();
     options.layeredOptions.balanceCheckEnabled = config.getEnableBalanceCheck();
+    options.layeredOptions.txPoolReserveSenderBalance = config.getReserveSenderBalance();
     options.sequencedOptions.txPoolLimitByAccountPercentage =
         config.getTxPoolLimitByAccountPercentage();
     options.sequencedOptions.txPoolMaxSize = config.getTxPoolMaxSize();
@@ -464,6 +479,7 @@ public class TransactionPoolOptions implements CLIOptions<TransactionPoolConfigu
         .maxFutureAgeSeconds(layeredOptions.txPoolMaxFutureAgeSeconds)
         .minScore(layeredOptions.minScore)
         .enableBalanceCheck(layeredOptions.balanceCheckEnabled)
+        .reserveSenderBalance(layeredOptions.txPoolReserveSenderBalance)
         .txPoolLimitByAccountPercentage(sequencedOptions.txPoolLimitByAccountPercentage)
         .txPoolMaxSize(sequencedOptions.txPoolMaxSize)
         .pendingTxRetentionPeriod(sequencedOptions.pendingTxRetentionPeriod)

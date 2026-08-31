@@ -104,6 +104,7 @@ public interface TransactionPoolConfiguration {
       new EnumMap<>(Map.of(TransactionType.BLOB, 72));
   int DEFAULT_MAX_FUTURE_BY_SENDER = 200;
   int DEFAULT_MAX_FUTURE_AGE_SECONDS = 300;
+  boolean DEFAULT_RESERVE_SENDER_BALANCE = true;
   Implementation DEFAULT_TX_POOL_IMPLEMENTATION = Implementation.LAYERED;
   Set<Address> DEFAULT_PRIORITY_SENDERS = Set.of();
   Wei DEFAULT_TX_POOL_MIN_GAS_PRICE = Wei.of(1000);
@@ -212,6 +213,18 @@ public interface TransactionPoolConfiguration {
   @Value.Default
   default int getMaxFutureAgeSeconds() {
     return DEFAULT_MAX_FUTURE_AGE_SECONDS;
+  }
+
+  /**
+   * Whether an incoming transaction is checked against the balance the sender has left once the
+   * transactions already in the pool, that run before it, have been paid for. Disable to check each
+   * transaction against the full confirmed balance instead.
+   *
+   * @return true if the balance already committed to the pool is reserved
+   */
+  @Value.Default
+  default boolean getReserveSenderBalance() {
+    return DEFAULT_RESERVE_SENDER_BALANCE;
   }
 
   @Value.Default
