@@ -53,6 +53,7 @@ import org.hyperledger.besu.ethereum.trie.MerkleTrieException;
 import org.hyperledger.besu.ethereum.trie.pathbased.bonsai.worldview.BonsaiWorldState;
 import org.hyperledger.besu.evm.account.Account;
 import org.hyperledger.besu.evm.fluent.SimpleAccount;
+import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.hyperledger.besu.plugin.data.AddedBlockContext.EventType;
 import org.hyperledger.besu.util.Subscribers;
 
@@ -497,11 +498,15 @@ public class TransactionPool implements BlockAddedObserver {
         bonsaiWorldState.disableCacheMerkleTrieLoader();
       }
       final Account senderAccount = worldState.get(transaction.getSender());
-      return new ValidationResultAndAccount(
-          senderAccount,
+      final var senderValidation =
           getTransactionValidator()
               .validateForSender(
-                  transaction, senderAccount, TransactionValidationParams.transactionPool()));
+                  transaction, senderAccount, TransactionValidationParams.transactionPool());
+      return new ValidationResultAndAccount(
+          senderAccount,
+          senderValidation.isValid()
+              ? validateAgainstBalanceCommittedToPool(transaction, senderAccount)
+              : senderValidation);
     } catch (MerkleTrieException ex) {
       LOG.debug(
           "MerkleTrieException while validating transaction for sender {}",
@@ -510,6 +515,106 @@ public class TransactionPool implements BlockAddedObserver {
     } catch (Exception ex) {
       return ValidationResultAndAccount.invalid(CHAIN_HEAD_WORLD_STATE_NOT_AVAILABLE);
     }
+  }
+
+  /**
+   * Check a transaction against the balance its sender has left once the transactions already in
+   * the pool, that run before it, have been paid for.
+   *
+   * <p>The stateless validator compares every transaction against the full confirmed balance on its
+   * own, so a sender can be admitted any number of transactions that together cost more than it can
+   * pay. Whichever ones run out of money can never be mined, and no removal reason covers them, so
+   * they hold slots for that sender until the node restarts. Accounting for the whole queue on
+   * arrival keeps them out, and tells the sender why straight away rather than accepting a
+   * transaction that will silently never be included. This is what geth does.
+   *
+   * <p>Only transactions with a lower nonce are counted: those are the ones that must execute
+   * first. A transaction with the same nonce is being replaced, so its cost is not owed twice. A
+   * sender with nothing queued ahead of this transaction has nothing to reserve, so the check adds
+   * nothing to what the validator already did.
+   *
+   * @param transaction the incoming transaction
+   * @param sender the sender account as of the chain head, null if it does not exist yet
+   * @return valid if the sender can still pay for this transaction
+   */
+  private ValidationResult<TransactionInvalidReason> validateAgainstBalanceCommittedToPool(
+      final Transaction transaction, final Account sender) {
+
+    if (!configuration.getReserveSenderBalance() || sender == null) {
+      return ValidationResult.valid();
+    }
+
+    final GasCalculator gasCalculator =
+        protocolSchedule
+            .getByBlockHeader(protocolContext.getBlockchain().getChainHeadHeader())
+            .getGasCalculator();
+
+    return checkAgainstBalanceLeftForTransaction(
+        transaction,
+        sender.getBalance(),
+        sender.getNonce(),
+        pendingTransactions
+            .getPendingTransactionsFor(transaction.getSender())
+            .pendingTransactions(),
+        tx -> tx.getUpfrontCost(gasCalculator.blobGasCost(tx.getBlobCount())));
+  }
+
+  /**
+   * The arithmetic behind {@link #validateAgainstBalanceCommittedToPool}, kept separate so it can
+   * be exercised without a world state.
+   *
+   * @param transaction the incoming transaction
+   * @param senderBalance the sender balance as of the chain head
+   * @param senderNonce the sender nonce as of the chain head
+   * @param queued the transactions of the same sender already in the pool
+   * @param upfrontCost how much a transaction can spend at most
+   * @return valid if the sender can still pay for the incoming transaction
+   */
+  static ValidationResult<TransactionInvalidReason> checkAgainstBalanceLeftForTransaction(
+      final Transaction transaction,
+      final Wei senderBalance,
+      final long senderNonce,
+      final Collection<PendingTransaction> queued,
+      final Function<Transaction, Wei> upfrontCost) {
+
+    Wei remaining = senderBalance;
+    int runningFirst = 0;
+    for (final PendingTransaction other : queued) {
+
+      if (Long.compareUnsigned(other.getNonce(), transaction.getNonce()) >= 0
+          || Long.compareUnsigned(other.getNonce(), senderNonce) < 0) {
+        continue;
+      }
+      runningFirst++;
+
+      final Wei cost = upfrontCost.apply(other.getTransaction());
+      if (cost.compareTo(remaining) > 0) {
+        // the queue is already beyond what the sender can pay, nothing is left for this one
+        remaining = Wei.ZERO;
+        break;
+      }
+      remaining = remaining.subtract(cost);
+    }
+
+    if (runningFirst == 0) {
+      // nothing of this sender's runs first, so there is nothing to reserve and the validator
+      // has already compared this transaction against the balance it gets to spend
+      return ValidationResult.valid();
+    }
+
+    final Wei cost = upfrontCost.apply(transaction);
+    if (cost.compareTo(remaining) > 0) {
+      return ValidationResult.invalid(
+          TransactionInvalidReason.UPFRONT_COST_EXCEEDS_BALANCE,
+          String.format(
+              "transaction up-front cost %s exceeds the %s left of the balance of sender %s,"
+                  + " once the %d transaction(s) already in the pool that run first are paid for",
+              cost.toQuantityHexString(),
+              remaining.toQuantityHexString(),
+              transaction.getSender(),
+              runningFirst));
+    }
+    return ValidationResult.valid();
   }
 
   private TransactionInvalidReason validatePrice(
