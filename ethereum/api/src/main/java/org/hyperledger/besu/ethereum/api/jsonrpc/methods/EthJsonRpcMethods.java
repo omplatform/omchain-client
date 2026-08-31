@@ -140,7 +140,8 @@ public class EthJsonRpcMethods extends ApiGroupJsonRpcMethods {
             new EthAccounts(),
             new EthBlockNumber(blockchainQueries),
             new EthGetBalance(blockchainQueries, transactionSimulator),
-            new org.hyperledger.besu.ethereum.api.jsonrpc.internal.methods.EthPendingTransactions(transactionPool),
+            new org.hyperledger.besu.ethereum.api.jsonrpc.internal.methods.EthPendingTransactions(
+                transactionPool),
             new EthGetBlockByHash(blockchainQueries, blockResult),
             new EthGetBlockByNumber(blockchainQueries, blockResult, synchronizer),
             new EthGetBlockReceipts(blockchainQueries, protocolSchedule),

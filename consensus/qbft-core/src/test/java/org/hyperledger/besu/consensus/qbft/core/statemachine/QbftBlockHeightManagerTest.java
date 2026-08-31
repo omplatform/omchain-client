@@ -304,8 +304,7 @@ public class QbftBlockHeightManagerTest {
   }
 
   @Test
-  public void
-      onBlockTimerExpiryForNonProposerWithPendingTransactions_KeepsRoundTimerRunning() {
+  public void onBlockTimerExpiryForNonProposerWithPendingTransactions_KeepsRoundTimerRunning() {
     // A node that goes idle has no round timer, and a node with no round timer cannot call a
     // round change. If the proposer for this round has stopped responding while transactions are
     // waiting, every other validator going idle leaves nobody able to replace it and the chain
@@ -336,8 +335,7 @@ public class QbftBlockHeightManagerTest {
   }
 
   @Test
-  public void
-      onBlockTimerExpiryForNonProposerWithNoPendingTransactions_StillGoesIdle() {
+  public void onBlockTimerExpiryForNonProposerWithNoPendingTransactions_StillGoesIdle() {
     // The counterpart: with nothing waiting, idling is still correct and still happens. This is
     // what keeps an idle chain from producing a block every second.
     when(finalState.isLocalNodeProposerForRound(roundIdentifier)).thenReturn(false);

@@ -103,8 +103,8 @@ public class TransactionSimulator {
       pendingTransactionsSupplier = java.util.List::of;
 
   /**
-   * เพดานความปลอดภัยของจำนวน tx ที่รันทับ state สำหรับ eth_call แบบ pending
-   * (ตั้งสูงพอสำหรับงานจริง ; ถ้าชนเพดานจะ log WARN ไม่ปล่อยให้ผิดเงียบๆ)
+   * เพดานความปลอดภัยของจำนวน tx ที่รันทับ state สำหรับ eth_call แบบ pending (ตั้งสูงพอสำหรับงานจริง
+   * ; ถ้าชนเพดานจะ log WARN ไม่ปล่อยให้ผิดเงียบๆ)
    */
   private static final int MAX_PENDING_TXS_APPLIED = 20_000;
 
@@ -241,7 +241,9 @@ public class TransactionSimulator {
 
     final ProtocolSpec protocolSpec = protocolSchedule.getByBlockHeader(pendingBlockHeader);
     final BlockHashLookup blockHashLookup =
-        protocolSpec.getPreExecutionProcessor().createBlockHashLookup(blockchain, pendingBlockHeader);
+        protocolSpec
+            .getPreExecutionProcessor()
+            .createBlockHashLookup(blockchain, pendingBlockHeader);
     final MainnetTransactionProcessor processor = protocolSpec.getTransactionProcessor();
 
     final java.util.List<Transaction> all =
@@ -305,8 +307,7 @@ public class TransactionSimulator {
       return java.util.Optional.empty();
     }
     final org.hyperledger.besu.datatypes.Wei latest;
-    try (final MutableWorldState ws =
-        duplicateWorldStateAtParent(blockchain.getChainHeadHash())) {
+    try (final MutableWorldState ws = duplicateWorldStateAtParent(blockchain.getChainHeadHash())) {
       final org.hyperledger.besu.evm.account.Account a = ws.get(address);
       latest = a == null ? org.hyperledger.besu.datatypes.Wei.ZERO : a.getBalance();
     } catch (final Exception e) {
