@@ -158,6 +158,7 @@ public class TransactionPoolOptions implements CLIOptions<TransactionPoolConfigu
     private static final String TX_POOL_MAX_PRIORITIZED_BY_TYPE =
         "--tx-pool-max-prioritized-by-type";
     private static final String TX_POOL_MAX_FUTURE_BY_SENDER = "--tx-pool-max-future-by-sender";
+    private static final String TX_POOL_MAX_FUTURE_AGE_SECONDS = "--tx-pool-max-future-age-seconds";
     private static final String TX_POOL_MIN_SCORE = "--tx-pool-min-score";
     private static final String TX_POOL_ENABLE_BALANCE_CHECK = "--tx-pool-enable-balance-check";
 
@@ -192,6 +193,15 @@ public class TransactionPoolOptions implements CLIOptions<TransactionPoolConfigu
         description =
             "Max number of future pending transactions allowed for a single sender (default: ${DEFAULT-VALUE})")
     Integer txPoolMaxFutureBySender = TransactionPoolConfiguration.DEFAULT_MAX_FUTURE_BY_SENDER;
+
+    @CommandLine.Option(
+        names = {TX_POOL_MAX_FUTURE_AGE_SECONDS},
+        paramLabel = MANDATORY_INTEGER_FORMAT_HELP,
+        description =
+            "Drop a pending transaction that cannot be executed, because of a gap in its"
+                + " sender's nonce sequence, after this many seconds. 0 disables the check"
+                + " (default: ${DEFAULT-VALUE})")
+    Integer txPoolMaxFutureAgeSeconds = TransactionPoolConfiguration.DEFAULT_MAX_FUTURE_AGE_SECONDS;
 
     @CommandLine.Option(
         names = {TX_POOL_MIN_SCORE},
@@ -372,6 +382,7 @@ public class TransactionPoolOptions implements CLIOptions<TransactionPoolConfigu
     options.layeredOptions.txPoolMaxPrioritizedByType =
         config.getMaxPrioritizedTransactionsByType();
     options.layeredOptions.txPoolMaxFutureBySender = config.getMaxFutureBySender();
+    options.layeredOptions.txPoolMaxFutureAgeSeconds = config.getMaxFutureAgeSeconds();
     options.layeredOptions.minScore = config.getMinScore();
     options.layeredOptions.balanceCheckEnabled = config.getEnableBalanceCheck();
     options.sequencedOptions.txPoolLimitByAccountPercentage =
@@ -438,6 +449,7 @@ public class TransactionPoolOptions implements CLIOptions<TransactionPoolConfigu
         .maxPrioritizedTransactions(layeredOptions.txPoolMaxPrioritized)
         .maxPrioritizedTransactionsByType(layeredOptions.txPoolMaxPrioritizedByType)
         .maxFutureBySender(layeredOptions.txPoolMaxFutureBySender)
+        .maxFutureAgeSeconds(layeredOptions.txPoolMaxFutureAgeSeconds)
         .minScore(layeredOptions.minScore)
         .enableBalanceCheck(layeredOptions.balanceCheckEnabled)
         .txPoolLimitByAccountPercentage(sequencedOptions.txPoolLimitByAccountPercentage)

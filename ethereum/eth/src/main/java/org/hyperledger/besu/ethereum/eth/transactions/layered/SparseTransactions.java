@@ -15,6 +15,7 @@
 package org.hyperledger.besu.ethereum.eth.transactions.layered;
 
 import static org.hyperledger.besu.ethereum.eth.transactions.layered.LayeredRemovalReason.LayerMoveReason.PROMOTED;
+import static org.hyperledger.besu.ethereum.eth.transactions.layered.LayeredRemovalReason.PoolRemovalReason.DROPPED;
 import static org.hyperledger.besu.ethereum.eth.transactions.layered.LayeredRemovalReason.PoolRemovalReason.INVALIDATED;
 
 import org.hyperledger.besu.datatypes.Address;
@@ -48,8 +49,11 @@ import java.util.function.Predicate;
 import java.util.stream.IntStream;
 
 import com.google.common.collect.Iterables;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class SparseTransactions extends AbstractTransactionsLayer {
+  private static final Logger SPARSE_LOG = LoggerFactory.getLogger(SparseTransactions.class);
   private static final String SENDER_MIXED_PRIORITY_ERROR =
       "Sender %s cannot simultaneously have and not have priority."
           + " Probably you need to set --tx-pool-no-local-priority=true and/or configure"
@@ -144,7 +148,52 @@ public class SparseTransactions extends AbstractTransactionsLayer {
   }
 
   @Override
-  protected void internalBlockAdded(final BlockHeader blockHeader, final FeeMarket feeMarket) {}
+  protected void internalBlockAdded(final BlockHeader blockHeader, final FeeMarket feeMarket) {
+    dropSendersStuckLongerThanMaxAge();
+  }
+
+  /**
+   * Drop every transaction of any sender whose oldest transaction in this layer has been waiting
+   * longer than the configured age.
+   *
+   * <p>Everything in this layer is unexecutable: each transaction sits behind a gap in its sender's
+   * nonce sequence and cannot be mined until that gap is filled. Without this, a single missing
+   * nonce leaves an address unusable until the node restarts, however long that takes. geth drops
+   * these after --txpool.lifetime for the same reason.
+   *
+   * <p>Whole senders are dropped rather than individual transactions, because removing only the
+   * oldest would leave the rest still stranded behind the same gap. Layers holding executable
+   * transactions are never touched, so this cannot introduce a new gap.
+   */
+  private void dropSendersStuckLongerThanMaxAge() {
+    final int maxAgeSeconds = poolConfig.getMaxFutureAgeSeconds();
+    if (maxAgeSeconds <= 0 || txsBySender.isEmpty()) {
+      return;
+    }
+    final long cutoff = System.currentTimeMillis() - (maxAgeSeconds * 1000L);
+
+    final List<PendingTransaction> expired = new ArrayList<>();
+    for (final var senderEntry : txsBySender.entrySet()) {
+      final var senderTxs = senderEntry.getValue();
+      final boolean senderIsStuck =
+          senderTxs.values().stream().anyMatch(tx -> tx.getAddedAt() < cutoff);
+      if (senderIsStuck) {
+        expired.addAll(senderTxs.values());
+      }
+    }
+
+    // collected first: remove() mutates txsBySender
+    expired.forEach(tx -> remove(tx, DROPPED));
+
+    if (!expired.isEmpty()) {
+      SPARSE_LOG
+          .atDebug()
+          .setMessage("Dropped {} unexecutable transaction(s) waiting longer than {}s")
+          .addArgument(expired.size())
+          .addArgument(maxAgeSeconds)
+          .log();
+    }
+  }
 
   /**
    * We only want to promote transactions that have gap == 0, so there will be no gap in the prev

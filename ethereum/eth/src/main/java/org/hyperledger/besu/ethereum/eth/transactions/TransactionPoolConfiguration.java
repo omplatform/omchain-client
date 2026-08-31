@@ -103,6 +103,7 @@ public interface TransactionPoolConfiguration {
   EnumMap<TransactionType, Integer> DEFAULT_MAX_PRIORITIZED_TRANSACTIONS_BY_TYPE =
       new EnumMap<>(Map.of(TransactionType.BLOB, 72));
   int DEFAULT_MAX_FUTURE_BY_SENDER = 200;
+  int DEFAULT_MAX_FUTURE_AGE_SECONDS = 300;
   Implementation DEFAULT_TX_POOL_IMPLEMENTATION = Implementation.LAYERED;
   Set<Address> DEFAULT_PRIORITY_SENDERS = Set.of();
   Wei DEFAULT_TX_POOL_MIN_GAS_PRICE = Wei.of(1000);
@@ -194,6 +195,17 @@ public interface TransactionPoolConfiguration {
   @Value.Default
   default int getMaxFutureBySender() {
     return DEFAULT_MAX_FUTURE_BY_SENDER;
+  }
+
+  /**
+   * How long a transaction that cannot be executed, because of a gap in the sender's nonce
+   * sequence, is kept before being dropped. Zero disables the check.
+   *
+   * @return the age in seconds
+   */
+  @Value.Default
+  default int getMaxFutureAgeSeconds() {
+    return DEFAULT_MAX_FUTURE_AGE_SECONDS;
   }
 
   @Value.Default
