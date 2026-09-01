@@ -21,13 +21,15 @@ import sys
 import time
 import urllib.request
 
+import _env
+
 from eth_account import Account
 
 RPC = "http://127.0.0.1:49544"          # qtrial-qrpc
 SIGNER_RPC = "http://127.0.0.1:49541"   # qtrial-qa
 CHAIN_ID = 1246
 GAS_PRICE = 500 * 10**9                 # นโยบายเชน: ต่ำกว่า 500 gwei ไม่รับ
-ECW, ECW_KEY = 49080, os.environ["OMCHAIN_ECW_KEY"]
+ECW, ECW_KEY = 49080, _env.need("OMCHAIN_ECW_KEY", "AUTH_SECRET ของ ecw")
 
 
 def rpc(method, params=None, url=RPC, timeout=20):
@@ -54,7 +56,7 @@ def ecw(method, params):
 def funded_ecw_wallet():
     """หา wallet ใน ecw ที่มีเงินพอจ่าย gas + ยอดโอน"""
     out = subprocess.run(
-        ["docker", "exec", "qtrial-ecw-mysql", "mysql", "-uecw_om", "-p" + os.environ["OMCHAIN_ECW_DB_PASSWORD"],
+        ["docker", "exec", "qtrial-ecw-mysql", "mysql", "-uecw_om", "-p" + _env.need("OMCHAIN_ECW_DB_PASSWORD", "รหัสผ่าน MySQL ของ ecw"),
          "ecw_om", "-N", "-e", "select address from wallet_account order by id limit 20"],
         capture_output=True, text=True).stdout.split()
     for a in out:

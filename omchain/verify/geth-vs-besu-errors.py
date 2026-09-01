@@ -20,13 +20,15 @@ import subprocess
 import time
 import urllib.request
 
+import _env
+
 from eth_account import Account
 
 GETH = "http://127.0.0.1:48999"
 BESU = "http://127.0.0.1:49544"
 BESU_CHAIN_ID = 1246
 BESU_MIN_GWEI = 500
-ECW, ECW_KEY = 49080, os.environ["OMCHAIN_ECW_KEY"]
+ECW, ECW_KEY = 49080, _env.need("OMCHAIN_ECW_KEY", "AUTH_SECRET ของ ecw")
 
 
 def rpc(url, method, params, timeout=30):
@@ -79,7 +81,7 @@ def fund_on_geth(address, amount_eth=5):
 
 def fund_on_besu(address, amount_eth=5):
     out = subprocess.run(
-        ["docker", "exec", "qtrial-ecw-mysql", "mysql", "-uecw_om", "-p" + os.environ["OMCHAIN_ECW_DB_PASSWORD"],
+        ["docker", "exec", "qtrial-ecw-mysql", "mysql", "-uecw_om", "-p" + _env.need("OMCHAIN_ECW_DB_PASSWORD", "รหัสผ่าน MySQL ของ ecw"),
          "ecw_om", "-N", "-e", "select address from wallet_account order by id limit 25"],
         capture_output=True, text=True).stdout.split()
     rich = max(("0x" + a for a in out),
