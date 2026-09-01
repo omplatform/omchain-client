@@ -21,6 +21,8 @@ import subprocess
 import time
 import urllib.request
 
+import _env
+
 from eth_account import Account
 
 RPC = "http://127.0.0.1:49544"
@@ -46,13 +48,13 @@ def ecw(m, p):
     r = urllib.request.Request("http://127.0.0.1:49080/api/rpc", json.dumps(
         {"jsonrpc": "2.0", "method": m, "params": p, "id": 1}).encode(),
         {"Content-Type": "application/json",
-         "X-API-KEY": os.environ["OMCHAIN_ECW_KEY"]})
+         "X-API-KEY": _env.need("OMCHAIN_ECW_KEY", "AUTH_SECRET ของ ecw")})
     return json.load(urllib.request.urlopen(r, timeout=60))
 
 
 def wallets():
     out = subprocess.run(
-        ["docker", "exec", "qtrial-ecw-mysql", "mysql", "-uecw_om", "-p" + os.environ["OMCHAIN_ECW_DB_PASSWORD"],
+        ["docker", "exec", "qtrial-ecw-mysql", "mysql", "-uecw_om", "-p" + _env.need("OMCHAIN_ECW_DB_PASSWORD", "รหัสผ่าน MySQL ของ ecw"),
          "ecw_om", "-N", "-e", "select address from wallet_account order by id limit 25"],
         capture_output=True, text=True).stdout.split()
     return ["0x" + a for a in out]

@@ -37,3 +37,11 @@ jitpack.yml
 **/**/.factorypath
 **/**/.jqwik-database
 .workspaces/
+
+# omchain — ค่าลับของเรา ห้ามขึ้น git เด็ดขาด
+__pycache__/
+*.pyc
+.env
+*.env
+!*.env.example
+omchain/**/.env
