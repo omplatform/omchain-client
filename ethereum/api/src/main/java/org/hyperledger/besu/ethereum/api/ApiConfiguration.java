@@ -60,6 +60,9 @@ public abstract class ApiConfiguration {
   /** The default maximum block range for log filter queries. */
   public static final long DEFAULT_MAX_LOGS_RANGE = 5000L;
 
+  /** Whether the debug namespace is limited to the methods that only read. */
+  public static final boolean DEFAULT_DEBUG_READ_ONLY = true;
+
   /** Constructs a new ApiConfiguration with default values. */
   protected ApiConfiguration() {}
 
@@ -124,6 +127,19 @@ public abstract class ApiConfiguration {
   @Value.Default
   public Long getMaxLogsRange() {
     return DEFAULT_MAX_LOGS_RANGE;
+  }
+
+  /**
+   * Whether the debug namespace serves only the methods that read. The rest of it can rewind the
+   * chain head, re-import a block, resync the world state, submit transactions, or write trace
+   * files to the node's disk, none of which an exposed endpoint has any business doing, while
+   * debug_trace* is often needed by an explorer sitting on the same endpoint.
+   *
+   * @return true if the writing methods are left unregistered
+   */
+  @Value.Default
+  public boolean getDebugReadOnly() {
+    return DEFAULT_DEBUG_READ_ONLY;
   }
 
   /**

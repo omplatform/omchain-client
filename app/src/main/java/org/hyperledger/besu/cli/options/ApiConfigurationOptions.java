@@ -119,6 +119,17 @@ public class ApiConfigurationOptions {
           "Server-side cap on EVM steps captured per debug_trace*/trace_call request. Callers may request fewer steps but not more. Must be >=0. 0 disables the cap (default: ${DEFAULT-VALUE})")
   private final Long rpcMaxTraceSteps = ApiConfiguration.DEFAULT_DEBUG_TRACE_STEP_LIMIT;
 
+  @CommandLine.Option(
+      names = {"--rpc-debug-read-only"},
+      paramLabel = "<Boolean>",
+      description =
+          "Serve only the debug methods that read. The rest can rewind the chain head,"
+              + " re-import a block, resync the world state, submit transactions or write"
+              + " trace files to disk (default: ${DEFAULT-VALUE})",
+      fallbackValue = "true",
+      arity = "0..1")
+  private final Boolean debugReadOnly = ApiConfiguration.DEFAULT_DEBUG_READ_ONLY;
+
   /**
    * Validates the API options.
    *
@@ -163,6 +174,7 @@ public class ApiConfigurationOptions {
   public ApiConfiguration apiConfiguration() {
     var builder =
         ImmutableApiConfiguration.builder()
+            .debugReadOnly(debugReadOnly)
             .gasPriceBlocks(apiGasPriceBlocks)
             .gasPricePercentile(apiGasPricePercentile)
             .gasPriceMax(Wei.of(apiGasPriceMax))
