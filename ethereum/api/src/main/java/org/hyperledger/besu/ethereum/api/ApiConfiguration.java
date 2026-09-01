@@ -66,6 +66,9 @@ public abstract class ApiConfiguration {
   /** Whether the debug namespace is limited to the methods that only read. */
   public static final boolean DEFAULT_DEBUG_READ_ONLY = true;
 
+  /** Whether transaction rejections are reported the way geth reports them. */
+  public static final boolean DEFAULT_GETH_COMPATIBLE_ERRORS = true;
+
   /** Constructs a new ApiConfiguration with default values. */
   protected ApiConfiguration() {}
 
@@ -143,6 +146,18 @@ public abstract class ApiConfiguration {
   @Value.Default
   public boolean getDebugReadOnly() {
     return DEFAULT_DEBUG_READ_ONLY;
+  }
+
+  /**
+   * Whether eth_sendRawTransaction reports a rejected transaction the way geth does: code -32000
+   * and geth's wording. Callers written against geth match on those words, and a chain moving off
+   * geth cannot expect them all to be rewritten. Disable to answer in Besu's own codes.
+   *
+   * @return true if rejections are reported the way geth reports them
+   */
+  @Value.Default
+  public boolean getGethCompatibleErrors() {
+    return DEFAULT_GETH_COMPATIBLE_ERRORS;
   }
 
   /**

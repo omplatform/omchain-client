@@ -137,6 +137,17 @@ public class ApiConfigurationOptions {
       arity = "0..1")
   private final Boolean debugReadOnly = ApiConfiguration.DEFAULT_DEBUG_READ_ONLY;
 
+  @CommandLine.Option(
+      names = {"--rpc-geth-compatible-errors"},
+      paramLabel = "<Boolean>",
+      description =
+          "Report a transaction rejected by eth_sendRawTransaction the way geth reports"
+              + " it: code -32000 and geth's wording, which is what callers written"
+              + " against geth match on (default: ${DEFAULT-VALUE})",
+      fallbackValue = "true",
+      arity = "0..1")
+  private final Boolean gethCompatibleErrors = ApiConfiguration.DEFAULT_GETH_COMPATIBLE_ERRORS;
+
   /**
    * Validates the API options.
    *
@@ -186,6 +197,7 @@ public class ApiConfigurationOptions {
     var builder =
         ImmutableApiConfiguration.builder()
             .debugReadOnly(debugReadOnly)
+            .gethCompatibleErrors(gethCompatibleErrors)
             .gasPriceBlocks(apiGasPriceBlocks)
             .gasPricePercentile(apiGasPricePercentile)
             .gasPriceMax(Wei.of(apiGasPriceMax))

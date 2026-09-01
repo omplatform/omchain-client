@@ -175,7 +175,10 @@ public class EthJsonRpcMethods extends ApiGroupJsonRpcMethods {
             new EthSyncing(synchronizer),
             new EthGetStorageAt(blockchainQueries),
             new EthGetStorageValues(blockchainQueries),
-            new EthSendRawTransaction(transactionPool),
+            new EthSendRawTransaction(
+                com.google.common.base.Suppliers.ofInstance(transactionPool),
+                false,
+                apiConfiguration.getGethCompatibleErrors()),
             new EthSendTransaction(),
             new EthEstimateGas(blockchainQueries, transactionSimulator, apiConfiguration),
             new EthCreateAccessList(blockchainQueries, transactionSimulator),
