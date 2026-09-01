@@ -207,6 +207,7 @@ tx-pool-max-future-by-sender=321
 tx-pool-max-future-age-seconds=600
 tx-pool-reserve-sender-balance=true
 rpc-debug-read-only=true
+rpc-geth-compatible-errors=true
 tx-pool-enable-balance-check=false
 ## Legacy/Sequenced
 tx-pool-retention-hours=999

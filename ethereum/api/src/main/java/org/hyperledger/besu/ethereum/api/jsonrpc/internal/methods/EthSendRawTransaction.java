@@ -16,6 +16,7 @@ package org.hyperledger.besu.ethereum.api.jsonrpc.internal.methods;
 
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Hash;
+import org.hyperledger.besu.ethereum.api.jsonrpc.GethCompatibleTransactionErrors;
 import org.hyperledger.besu.ethereum.api.jsonrpc.JsonRpcErrorConverter;
 import org.hyperledger.besu.ethereum.api.jsonrpc.RpcMethod;
 import org.hyperledger.besu.ethereum.api.jsonrpc.internal.JsonRpcRequestContext;
@@ -48,6 +49,7 @@ public class EthSendRawTransaction implements JsonRpcMethod {
   private final boolean sendEmptyHashOnInvalidBlock;
 
   private final Supplier<TransactionPool> transactionPool;
+  private final boolean gethCompatibleErrors;
 
   public EthSendRawTransaction(final TransactionPool transactionPool) {
     this(Suppliers.ofInstance(transactionPool), false);
@@ -55,8 +57,23 @@ public class EthSendRawTransaction implements JsonRpcMethod {
 
   public EthSendRawTransaction(
       final Supplier<TransactionPool> transactionPool, final boolean sendEmptyHashOnInvalidBlock) {
+    this(transactionPool, sendEmptyHashOnInvalidBlock, false);
+  }
+
+  /**
+   * Instantiates a new eth_sendRawTransaction.
+   *
+   * @param transactionPool the transaction pool
+   * @param sendEmptyHashOnInvalidBlock whether to answer an invalid block with an empty hash
+   * @param gethCompatibleErrors whether to report a rejection the way geth reports it
+   */
+  public EthSendRawTransaction(
+      final Supplier<TransactionPool> transactionPool,
+      final boolean sendEmptyHashOnInvalidBlock,
+      final boolean gethCompatibleErrors) {
     this.transactionPool = transactionPool;
     this.sendEmptyHashOnInvalidBlock = sendEmptyHashOnInvalidBlock;
+    this.gethCompatibleErrors = gethCompatibleErrors;
   }
 
   @Override
@@ -121,7 +138,18 @@ public class EthSendRawTransaction implements JsonRpcMethod {
       final ValidationResult<TransactionInvalidReason> validationResult) {
     if (sendEmptyHashOnInvalidBlock) {
       return new JsonRpcSuccessResponse(requestContext.getRequest().getId(), Hash.EMPTY.toString());
-    } else {
+    }
+
+    if (gethCompatibleErrors) {
+      final var gethError =
+          GethCompatibleTransactionErrors.forReason(
+              errorReason, validationResult.getErrorMessage());
+      if (gethError.isPresent()) {
+        return new JsonRpcErrorResponse(requestContext.getRequest().getId(), gethError.get());
+      }
+    }
+
+    {
       if (errorReason == TransactionInvalidReason.PLUGIN_TX_POOL_VALIDATOR) {
         final RpcErrorType rpcErrorType =
             JsonRpcErrorConverter.convertTransactionInvalidReason(

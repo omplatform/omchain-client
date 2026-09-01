@@ -14,9 +14,18 @@
  */
 package org.hyperledger.besu.ethereum.api.jsonrpc.bonsai;
 
+import org.hyperledger.besu.ethereum.api.ApiConfiguration;
+import org.hyperledger.besu.ethereum.api.ImmutableApiConfiguration;
 import org.hyperledger.besu.ethereum.api.jsonrpc.AbstractJsonRpcHttpBySpecTest;
 
 public class EthJsonRpcHttpBySpecTest extends AbstractJsonRpcHttpBySpecTest {
+
+  @Override
+  protected ApiConfiguration createApiConfiguration() {
+    // these specs state what stock Besu answers; the geth-shaped answers are this fork's
+    // own behaviour and are covered by GethCompatibleTransactionErrorsTest
+    return ImmutableApiConfiguration.builder().gasCap(0L).gethCompatibleErrors(false).build();
+  }
 
   @Override
   protected void doSetup() throws Exception {
