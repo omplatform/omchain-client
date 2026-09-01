@@ -14,9 +14,17 @@
  */
 package org.hyperledger.besu.ethereum.api.jsonrpc.bonsai;
 
+import org.hyperledger.besu.ethereum.api.ApiConfiguration;
+import org.hyperledger.besu.ethereum.api.ImmutableApiConfiguration;
 import org.hyperledger.besu.ethereum.api.jsonrpc.AbstractJsonRpcHttpBySpecTest;
 
 public class DebugJsonRpcHttpBySpecTest extends AbstractJsonRpcHttpBySpecTest {
+
+  @Override
+  protected ApiConfiguration createApiConfiguration() {
+    // these specs cover debug_batchSendRawTransaction, which the read-only default leaves out
+    return ImmutableApiConfiguration.builder().gasCap(0L).debugReadOnly(false).build();
+  }
 
   @Override
   protected void doSetup() throws Exception {

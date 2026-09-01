@@ -17,6 +17,7 @@ package org.hyperledger.besu.ethereum.api.jsonrpc.methods;
 import org.hyperledger.besu.ethereum.ProtocolContext;
 import org.hyperledger.besu.ethereum.api.ApiConfiguration;
 import org.hyperledger.besu.ethereum.api.jsonrpc.RpcApis;
+import org.hyperledger.besu.ethereum.api.jsonrpc.RpcMethod;
 import org.hyperledger.besu.ethereum.api.jsonrpc.internal.DebugReplayBlock;
 import org.hyperledger.besu.ethereum.api.jsonrpc.internal.methods.DebugAccountAt;
 import org.hyperledger.besu.ethereum.api.jsonrpc.internal.methods.DebugAccountRange;
@@ -51,7 +52,9 @@ import org.hyperledger.besu.ethereum.transaction.TransactionSimulator;
 import org.hyperledger.besu.metrics.ObservableMetricsSystem;
 
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 public class DebugJsonRpcMethods extends ApiGroupJsonRpcMethods {
 
@@ -93,11 +96,34 @@ public class DebugJsonRpcMethods extends ApiGroupJsonRpcMethods {
     return RpcApis.DEBUG.name();
   }
 
+  /**
+   * The debug methods that change something: the chain head, the world state, the transaction pool,
+   * or the node's disk. Everything else in the namespace only reads.
+   */
+  private static final Set<String> WRITING_METHODS =
+      Set.of(
+          RpcMethod.DEBUG_SET_HEAD.getMethodName(),
+          RpcMethod.DEBUG_REPLAY_BLOCK.getMethodName(),
+          RpcMethod.DEBUG_RESYNC_WORLDSTATE.getMethodName(),
+          RpcMethod.DEBUG_BATCH_RAW_TRANSACTION.getMethodName(),
+          RpcMethod.DEBUG_STANDARD_TRACE_BLOCK_TO_FILE.getMethodName(),
+          RpcMethod.DEBUG_STANDARD_TRACE_BAD_BLOCK_TO_FILE.getMethodName());
+
   @Override
   protected Map<String, JsonRpcMethod> create() {
     final BlockReplay blockReplay =
         new BlockReplay(protocolSchedule, protocolContext, blockchainQueries.getBlockchain());
 
+    final Map<String, JsonRpcMethod> methods = createAll(blockReplay);
+    if (!apiConfiguration.getDebugReadOnly()) {
+      return methods;
+    }
+    final Map<String, JsonRpcMethod> readOnly = new HashMap<>(methods);
+    WRITING_METHODS.forEach(readOnly::remove);
+    return readOnly;
+  }
+
+  private Map<String, JsonRpcMethod> createAll(final BlockReplay blockReplay) {
     return mapOf(
         new DebugTraceTransaction(
             blockchainQueries, new TransactionTracer(blockReplay), protocolSchedule),

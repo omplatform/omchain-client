@@ -237,7 +237,7 @@ public abstract class AbstractJsonRpcHttpServiceTest {
             folder,
             mock(EthPeers.class),
             syncVertx,
-            ImmutableApiConfiguration.builder().build(),
+            apiConfiguration,
             Optional.empty(),
             transactionSimulator,
             new EthScheduler(1, 1, 1, new NoOpMetricsSystem()));

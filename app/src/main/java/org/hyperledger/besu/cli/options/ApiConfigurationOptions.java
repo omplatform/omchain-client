@@ -126,6 +126,17 @@ public class ApiConfigurationOptions {
               + "request. Must be >=0. 0 specifies no limit (default: ${DEFAULT-VALUE})")
   private final Integer rpcMaxLogFilterAddresses = ApiConfiguration.DEFAULT_MAX_FILTER_ADDRESSES;
 
+  @CommandLine.Option(
+      names = {"--rpc-debug-read-only"},
+      paramLabel = "<Boolean>",
+      description =
+          "Serve only the debug methods that read. The rest can rewind the chain head,"
+              + " re-import a block, resync the world state, submit transactions or write"
+              + " trace files to disk (default: ${DEFAULT-VALUE})",
+      fallbackValue = "true",
+      arity = "0..1")
+  private final Boolean debugReadOnly = ApiConfiguration.DEFAULT_DEBUG_READ_ONLY;
+
   /**
    * Validates the API options.
    *
@@ -174,6 +185,7 @@ public class ApiConfigurationOptions {
   public ApiConfiguration apiConfiguration() {
     var builder =
         ImmutableApiConfiguration.builder()
+            .debugReadOnly(debugReadOnly)
             .gasPriceBlocks(apiGasPriceBlocks)
             .gasPricePercentile(apiGasPricePercentile)
             .gasPriceMax(Wei.of(apiGasPriceMax))
