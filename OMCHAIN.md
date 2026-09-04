@@ -3,7 +3,7 @@
 A fork of [Hyperledger Besu](https://github.com/hyperledger/besu) for the omchain
 network (chainId 1246).
 
-Base: **26.8.0** · branch `omchain/26.8.0` · version string `26.8.0-omchain`
+Base: **26.8.1** · branch `omclient-2681` · version string `26.8.1-omchain`
 
 ## Why this fork exists
 
@@ -54,7 +54,7 @@ docker run --rm -v "$PWD:/src" -w /src \
   -v omchain-gradle-cache:/root/.gradle \
   eclipse-temurin:25-jdk ./gradlew --no-daemon installDist -x test
 
-docker build -t omchain-client:26.8.0 -f - build/install/ <<'EOF'
+docker build -t omchain-client:26.8.1 -f - build/install/ <<'EOF'
 FROM eclipse-temurin:25-jre
 COPY besu /opt/besu
 RUN chmod +x /opt/besu/bin/besu

@@ -11,7 +11,7 @@ SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
 # ── ปรับได้จาก command line เช่น  make image TAG=26.8.1 ──────────────────────
-BASE        ?= 26.8.0
+BASE        ?= 26.8.1
 TAG         ?= $(BASE)
 IMAGE       ?= omchain-client
 VERSION     ?= $(BASE)-omchain

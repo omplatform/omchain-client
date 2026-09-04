@@ -1,4 +1,17 @@
-/* T-092 (infinity): eth_pendingTransactions แบบ geth — คืนรายการ tx ที่ค้างในคิว */
+/*
+ * Copyright contributors to Besu.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+ * an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
+ * specific language governing permissions and limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
 package org.hyperledger.besu.ethereum.api.jsonrpc.internal.methods;
 
 import org.hyperledger.besu.ethereum.api.jsonrpc.RpcMethod;
@@ -31,8 +44,9 @@ public class EthPendingTransactions implements JsonRpcMethod {
     transactionPool.getPendingTransactions().stream()
         .map(PendingTransaction::getTransaction)
         .sorted(
-            Comparator.comparing((org.hyperledger.besu.ethereum.core.Transaction t) ->
-                    t.getSender().toHexString())
+            Comparator.comparing(
+                    (org.hyperledger.besu.ethereum.core.Transaction t) ->
+                        t.getSender().toHexString())
                 .thenComparingLong(org.hyperledger.besu.ethereum.core.Transaction::getNonce))
         .forEach(t -> out.add(new TransactionPendingResult(t)));
     return new JsonRpcSuccessResponse(requestContext.getRequest().getId(), out);

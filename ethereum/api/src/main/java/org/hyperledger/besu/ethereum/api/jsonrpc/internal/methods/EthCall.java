@@ -96,8 +96,8 @@ public class EthCall extends AbstractBlockParameterOrBlockHashMethod {
   }
 
   /**
-   * T-092 (infinity): eth_call ที่ระบุ block เป็น "pending" ให้จำลองบน state
-   * ที่รวม tx ในคิวแล้ว (แบบเดียวกับ geth) แทนที่จะตกไปใช้ latest ตามค่าเดิมของ Besu
+   * T-092 (infinity): eth_call ที่ระบุ block เป็น "pending" ให้จำลองบน state ที่รวม tx ในคิวแล้ว
+   * (แบบเดียวกับ geth) แทนที่จะตกไปใช้ latest ตามค่าเดิมของ Besu
    */
   @Override
   protected Object pendingResult(final JsonRpcRequestContext request) {
@@ -137,7 +137,8 @@ public class EthCall extends AbstractBlockParameterOrBlockHashMethod {
             maybeStateOverrides,
             callParams.getStrict().orElse(Boolean.FALSE)
                 ? TransactionValidationParams.transactionSimulatorAllowFutureNonce()
-                : TransactionValidationParams.transactionSimulatorAllowExceedingBalanceAndFutureNonce(),
+                : TransactionValidationParams
+                    .transactionSimulatorAllowExceedingBalanceAndFutureNonce(),
             OperationTracer.NO_TRACING,
             pendingHeader)
         .map(

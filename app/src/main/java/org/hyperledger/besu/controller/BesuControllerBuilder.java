@@ -883,7 +883,9 @@ public abstract class BesuControllerBuilder implements MiningConfigurationOverri
     transactionSimulator.setPendingTransactionsSupplier(
         () ->
             transactionPool.getPendingTransactions().stream()
-                .map(org.hyperledger.besu.ethereum.eth.transactions.PendingTransaction::getTransaction)
+                .map(
+                    org.hyperledger.besu.ethereum.eth.transactions.PendingTransaction
+                        ::getTransaction)
                 .toList());
 
     final List<PeerValidator> peerValidators =

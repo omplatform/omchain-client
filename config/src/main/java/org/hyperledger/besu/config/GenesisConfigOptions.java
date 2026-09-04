@@ -87,7 +87,8 @@ public interface GenesisConfigOptions {
    * @return the boolean
    */
   default boolean isConsensusMigration() {
-    // T-092 (infinity): เปิดทาง Clique -> QBFT ด้วย (กลไก migration เป็น consensus-agnostic อยู่แล้ว)
+    // T-092 (infinity): เปิดทาง Clique -> QBFT ด้วย (กลไก migration เป็น consensus-agnostic
+    // อยู่แล้ว)
     return (isIbft2() || isIbftLegacy() || isClique()) && isQbft();
   }
 

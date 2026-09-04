@@ -28,7 +28,8 @@ import org.hyperledger.besu.ethereum.api.query.BlockchainQueries;
 import java.util.function.Supplier;
 
 public class EthGetBalance extends AbstractBlockParameterOrBlockHashMethod {
-  private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(EthGetBalance.class);
+  private static final org.slf4j.Logger LOG =
+      org.slf4j.LoggerFactory.getLogger(EthGetBalance.class);
 
   // T-092 (infinity): ใช้สำหรับอ่านยอดแบบ pending (Besu เดิมตอบเท่ากับ latest)
   private final org.hyperledger.besu.ethereum.transaction.TransactionSimulator transactionSimulator;
